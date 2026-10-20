@@ -1,0 +1,6 @@
+streamlit==1.45.1
+transformers==4.51.3
+torch==2.6.0
+Pillow==11.2.1
+numpy==2.2.6
+pytest==8.3.5

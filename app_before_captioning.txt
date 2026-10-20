@@ -1,0 +1,204 @@
+import io
+import warnings
+
+import streamlit as st
+import torch
+from PIL import Image, ImageOps
+from transformers import CLIPModel, CLIPProcessor
+
+
+MODEL_ID = "openai/clip-vit-base-patch32"
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+Image.MAX_IMAGE_PIXELS = 20_000_000
+
+st.set_page_config(
+    page_title="CrossCheck AI",
+    page_icon="🔎",
+    layout="wide",
+)
+
+
+@st.cache_resource(show_spinner="Loading the real CLIP model...")
+def load_model():
+    processor = CLIPProcessor.from_pretrained(MODEL_ID)
+    model = CLIPModel.from_pretrained(
+        MODEL_ID,
+        use_safetensors=True,
+    )
+    model.eval()
+    return processor, model
+
+
+def validate_image(data):
+    if not data:
+        raise ValueError("The uploaded file is empty.")
+
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise ValueError("Upload an image no larger than 10 MB.")
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", Image.DecompressionBombWarning)
+
+        # Check that the file is a supported, decodable image.
+        with Image.open(io.BytesIO(data)) as source:
+            if source.format not in {"JPEG", "PNG", "WEBP"}:
+                raise ValueError("Supported formats: JPEG, PNG, and WebP.")
+            source.verify()
+
+        # Reopen after verification and apply orientation metadata.
+        with Image.open(io.BytesIO(data)) as source:
+            image = ImageOps.exif_transpose(source).convert("RGB")
+            image.thumbnail((1600, 1600))
+            return image
+
+
+def compute_alignment(image, claim):
+    processor, model = load_model()
+
+    token_ids = processor.tokenizer(
+        claim,
+        add_special_tokens=True,
+        truncation=False,
+    )["input_ids"]
+
+    max_tokens = model.config.text_config.max_position_embeddings
+
+    if len(token_ids) > max_tokens:
+        raise ValueError(
+            f"Shorten your claim. CLIP supports at most {max_tokens} "
+            "tokens, including special tokens."
+        )
+
+    inputs = processor(
+        text=[claim],
+        images=image,
+        return_tensors="pt",
+        padding=True,
+    )
+
+    with torch.inference_mode():
+        outputs = model(**inputs)
+
+        score = torch.nn.functional.cosine_similarity(
+            outputs.image_embeds.float(),
+            outputs.text_embeds.float(),
+            dim=-1,
+        ).item()
+
+    return score
+
+
+def main():
+    st.title("🔎 CrossCheck AI")
+    st.subheader("Evidence Before Verdict")
+
+    st.info(
+        "CrossCheck AI evaluates image–text consistency; "
+        "it does not independently establish factual truth."
+    )
+
+    with st.sidebar:
+        st.header("Project")
+        st.write("**MEGHANA H S**")
+        st.write("Solo Participant · Team NeuralForge")
+        st.write("REVA University · CSE")
+        st.write("Challenge 13 — MultimodalFact AI")
+        st.write("Track: AI/ML Methodology")
+        st.divider()
+        st.caption(f"Model: {MODEL_ID}")
+        st.warning(
+            "Development checkpoint: real CLIP alignment only. "
+            "Final evidence fusion and contradiction reasoning "
+            "are not implemented yet."
+        )
+
+    uploaded = st.file_uploader(
+        "Upload one image",
+        type=["jpg", "jpeg", "png", "webp"],
+    )
+
+    claim = st.text_area(
+        "English caption or claim",
+        placeholder="Example: A dog is running on grass.",
+        max_chars=1500,
+    )
+
+    image = None
+
+    if uploaded is not None:
+        try:
+            image = validate_image(uploaded.getvalue())
+            st.image(
+                image,
+                caption="Submitted image",
+                use_container_width=True,
+            )
+        except Exception as exc:
+            st.error(f"Image validation failed: {exc}")
+
+    # Results are rendered only for the current button click.
+    # Editing either input clears the previously displayed result.
+    if st.button("Analyze Consistency", type="primary"):
+        if image is None:
+            st.warning("Please upload a valid image.")
+            return
+
+        clean_claim = claim.strip()
+
+        if not clean_claim:
+            st.warning("Please enter an English caption or claim.")
+            return
+
+        try:
+            with st.spinner(
+                "Running real inference. First use downloads CLIP model files..."
+            ):
+                score = compute_alignment(image, clean_claim)
+
+            st.success("Real CLIP inference completed.")
+
+            left, right = st.columns(2)
+
+            with left:
+                st.subheader("Text evidence")
+                st.write(clean_claim)
+
+            with right:
+                st.subheader("Model signal")
+                st.metric("CLIP cosine similarity", f"{score:.4f}")
+                st.caption(
+                    "Raw image–text embedding similarity. "
+                    "Not a probability or calibrated confidence score."
+                )
+
+            st.subheader("Assessment")
+            st.warning("INSUFFICIENT_EVIDENCE")
+            st.write(
+                "This baseline measures semantic alignment only. "
+                "It does not yet have enough grounded evidence to "
+                "issue an agreement or contradiction verdict."
+            )
+
+            st.subheader("Human-review guidance")
+            st.write(
+                "Compare visible objects and actions with the claim. "
+                "Dates, identities, geographic locations, and event "
+                "context may require independent external evidence."
+            )
+
+            st.caption(
+                "Low similarity alone does not prove contradiction. "
+                "High similarity does not prove factual truth. "
+                "No benchmark accuracy is claimed."
+            )
+
+        except Exception as exc:
+            st.error(
+                "Analysis could not complete. No assessment was generated."
+            )
+            st.text(f"{type(exc).__name__}: {exc}")
+
+
+if __name__ == "__main__":
+    main()

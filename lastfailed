@@ -1,0 +1,5 @@
+{
+  "tests/test_decision.py::TestConsistent::test_no_consistent_with_low_clip": true,
+  "tests/test_decision.py::TestContradictory::test_contradictory_when_all_signals_present": true,
+  "tests/test_decision.py::TestBoundaries::test_clip_one_below_high_threshold_not_consistent": true
+}
