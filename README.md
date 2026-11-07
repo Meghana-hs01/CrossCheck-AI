@@ -1,222 +1,145 @@
 # CrossCheck AI
-## Evidence Before Verdict
 
-**Developer:** MEGHANA H S  
-**Team:** NeuralForge · Solo Participant  
-**Institution:** REVA University, CSE  
-**Event:** AI Innovation Hackathon 2026  
-**Challenge:** 13 — MultimodalFact AI  
-**Track:** AI/ML Methodology  
+### Evidence Before Verdict
 
-## Overview
+CrossCheck AI is an experimental Streamlit app that compares an image with
+an English caption or claim. It combines three pretrained models with
+transparent decision rules, human-review controls, and downloadable reports.
 
-CrossCheck AI is an experimental image–English-claim consistency
-application. It combines real pretrained model inference with
-transparent decision rules and human-review controls.
+> **Important:** This prototype evaluates image–text consistency. It does not
+> independently establish factual truth, verify sources, or prove that an
+> image is authentic.
 
-It evaluates cross-modal consistency. It does not independently
-establish factual truth, verify sources, or detect image manipulation.
+## What it does
 
-## Actual implemented pipeline
+1. Validates and decodes an uploaded image.
+2. Uses CLIP to measure image–claim embedding similarity.
+3. Uses BLIP to generate a description of the image.
+4. Uses an NLI model to compare that description with the claim.
+5. Applies a heuristic policy to report supported consistency or abstain.
+6. Shows model signals, evidence, limitations, and review controls.
+7. Exports the analysis and human-review notes as JSON or text.
 
-1. Validate and decode the uploaded image.
-2. Compute CLIP image–claim cosine similarity.
-3. Generate a BLIP visual description.
-4. Compare that description with the claim using an NLI model.
-5. Apply a transparent, heuristic agreement/abstention policy.
-6. Display model signals, evidence, limitations, and review controls.
-7. Export JSON and readable evidence reports.
+## Try it
 
-Model-generated descriptions can hallucinate or omit details.
-NLI compares text; it does not directly inspect the image.
+Upload an image and enter a plain-English claim, for example:
 
-## Current verdict scope
+- “A dog is standing on grass.”
+- “A red car is parked beside a building.”
+- “Two people are riding bicycles.”
 
-- **CONSISTENT:** model-supported agreement with the generated
-  description under the configured heuristic rules.
-- **INSUFFICIENT_EVIDENCE:** unavailable stages, invalid or weak signals,
-  selected external-context flags, ambiguity, or unsupported conflict.
-- **CONTRADICTORY:** reserved in the result schema. Specific grounded
-  visual-conflict verification is not implemented, so the current
-  application does not issue this verdict.
+Click **Analyze Consistency**. The first analysis downloads the model weights,
+so an internet connection is required. Depending on your connection and
+computer, the first run may take several minutes.
 
-This is not yet a complete three-way visual contradiction detector.
+## Run locally on Windows
 
-## Architecture
+Use Python 3.10 and PowerShell from the project folder:
 
-```text
-app.py
-requirements.txt
-README.md
-.gitignore
-src/
-    __init__.py
-    validation.py
-    analysis.py
-    decision.py
-    models.py
-tests/
-    test_validation.py
-    test_analysis.py
-    test_decision.py
-```
-
-`app.py` contains the Streamlit interface and cached model loaders.
-`analysis.py` wraps inference.
-`decision.py` contains the pure decision policy.
-`validation.py` validates uploads and claims.
-`models.py` contains additional loaders for non-Streamlit callers.
-
-## Models and acknowledgements
-
-- Alignment: `openai/clip-vit-base-patch32`
-  https://huggingface.co/openai/clip-vit-base-patch32
-- Description: `Salesforce/blip-image-captioning-base`
-  https://huggingface.co/Salesforce/blip-image-captioning-base
-- Text comparison: `typeform/distilbert-base-uncased-mnli`
-  https://huggingface.co/typeform/distilbert-base-uncased-mnli
-
-Models and dependencies retain their respective licenses.
-Consult the linked model repositories for model cards and license terms.
-No project-wide license grant is implied by these acknowledgements.
-
-Weights are downloaded on first use and cached separately.
-They are not included in this repository.
-
-## Local setup — Windows CMD
-
-Use Python 3.10.
-
-```bat
+```powershell
 py -3.10 -m venv .venv
-.venv\Scripts\activate.bat
-python -m pip install --upgrade pip
-python -m pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
-python -m pip install -r requirements.txt
-python -m streamlit run app.py --server.fileWatcherType none
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m streamlit run app.py --server.fileWatcherType none
 ```
 
-Open http://localhost:8501.
+Open [http://localhost:8501](http://localhost:8501) in your browser. Keep the
+terminal open while using the app; press **Ctrl+C** there to stop it.
 
-Internet access is required for initial model downloads.
-All three models require memory and storage; suitability for a hosting
-platform must be checked separately.
+The CPU installation works without a CUDA-compatible GPU. The three models
+need several gigabytes of disk space and may require substantial memory while
+running. Their weights are downloaded and cached locally on first use; they
+are not included in this repository.
 
-## Decision policy
+## Run tests
 
-All thresholds are unvalidated prototype heuristics.
+The automated tests use mocked model outputs for inference-stage tests and do
+not download model weights:
 
-- CLIP similarity is supporting information, not a factual-confidence
-  score or a hard 0.26 agreement gate.
-- Agreement requires valid CLIP, BLIP, and NLI outputs.
-- Non-positive CLIP alignment triggers abstention.
-- NLI entailment must be at least 0.80.
-- Entailment must exceed the strongest competing NLI signal by at
-  least 0.20.
-- Model-stage errors trigger abstention.
-- Selected external-context patterns trigger abstention.
-- Generated-caption/NLI contradiction alone does not establish a
-  supported visual contradiction.
-
-External-context detection is limited and may miss unsupported claims.
-Do not interpret agreement as validation of every part of a claim.
-
-## Automated tests
-
-Run:
-
-```bat
-.venv\Scripts\python.exe -m pytest -q --tb=short
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q --tb=short
 ```
 
-Latest user-observed local result on 20 October 2026:
+The tests cover image and claim validation, inference wrappers, result
+structure, errors, and decision-policy behavior. Passing tests does not
+demonstrate model accuracy on real-world images.
+
+## Models
+
+| Stage | Model |
+|---|---|
+| Image–claim alignment | [openai/clip-vit-base-patch32](https://huggingface.co/openai/clip-vit-base-patch32) |
+| Image description | [Salesforce/blip-image-captioning-base](https://huggingface.co/Salesforce/blip-image-captioning-base) |
+| Description–claim comparison | [typeform/distilbert-base-uncased-mnli](https://huggingface.co/typeform/distilbert-base-uncased-mnli) |
+
+Review the linked model cards and licenses before redistributing or deploying
+the models. Project dependencies and model weights retain their own licenses;
+this repository does not grant a project-wide license.
+
+## How to interpret results
+
+- **CONSISTENT** means the model signals meet the prototype's rules for
+  agreement with the generated description. It is not proof that the full
+  claim is true.
+- **INSUFFICIENT_EVIDENCE** means the app abstains because evidence is missing,
+  weak, ambiguous, or requires context not available to the models.
+- **CONTRADICTORY** is reserved in the result schema. The app does not issue
+  this verdict because specific, grounded visual-conflict verification is not
+  implemented.
+
+CLIP similarity is not a probability or calibrated confidence score. NLI
+compares text and does not directly inspect the image. Generated descriptions
+may omit details or hallucinate. All decision thresholds are experimental,
+unvalidated heuristics; human review is recommended.
+
+## Project structure
 
 ```text
-63 passed in 2.47s
+app.py                  Streamlit interface and cached model loaders
+requirements.txt        Runtime and test dependencies
+src/
+  analysis.py            CLIP, BLIP, and NLI inference wrappers
+  decision.py            Evidence and abstention policy
+  validation.py          Image and claim validation
+tests/
+  test_analysis.py
+  test_decision.py
+  test_validation.py
 ```
 
-The decision tests were revised to match the current policy:
-the former hard CLIP gate was removed, and unsupported textual
-contradictions now require abstention.
+## Privacy and deployment
 
-Tests cover validation, mocked inference, result structure, missing
-signals, error handling, and decision-policy behavior.
+The app processes uploaded images in memory and does not explicitly save them
+to disk. Inference runs in the Python process hosting the app. A public
+deployment receives uploaded images on its server, so review that host's
+logging, retention, privacy, and resource policies before sharing it.
 
-Passing unit tests does not establish real-image accuracy.
-No benchmark accuracy, precision, recall, or F1 is claimed.
+GitHub Pages cannot run this Python backend. A live deployment needs a Python
+host with enough memory, storage, and network access to download the models.
+No public deployment is provided or claimed by this repository.
 
-## Observed real-model smoke test
+## Push to GitHub
 
-For one dog-on-grass image and the claim:
+Install [Git for Windows](https://git-scm.com/download/win), create an empty
+repository on GitHub, then run these commands from the project folder. Replace
+the URL with your repository's HTTPS URL:
 
-> A dog is standing on grass.
+```powershell
+git init
+git add .
+git commit -m "Prepare CrossCheck AI project"
+git branch -M main
+git remote add origin https://github.com/<YOUR-USERNAME>/<YOUR-REPOSITORY>.git
+git push -u origin main
+```
 
-The user observed:
+The `.gitignore` excludes virtual environments, caches, model weights,
+secrets, uploads, and local backups. Do not force-add those files or commit
+credentials.
 
-- CLIP cosine similarity: 0.2812
-- BLIP description: "a golden retrieve dog standing in a field"
-- NLI entailment: 0.9919
-- NLI contradiction: 0.0054
-- NLI neutral: 0.0027
-- Assessment: CONSISTENT
+---
 
-This is one observed example, not a benchmark.
-The latest decision-policy changes require further real-image testing.
-
-## Suggested manual checks
-
-1. Submit missing image/text and inspect validation.
-2. Analyze a clear image with a matching claim.
-3. Test several natural paraphrases using the same image.
-4. Test unsupported dates or event history.
-5. Edit inputs and confirm old results disappear.
-6. Reset inputs and analysis.
-7. Add human-review notes and inspect both report formats.
-8. Inspect model-stage errors if a model cannot load.
-
-Record actual observations rather than assuming expected results.
-
-## Limitations and responsible use
-
-- Generated descriptions can hallucinate or omit content.
-- NLI may misinterpret paraphrases, negation, or fine-grained details.
-- CLIP can be unreliable for counts, attributes, and precise relations.
-- The decision thresholds are not calibrated on a labelled dataset.
-- False positives and false negatives remain possible.
-- No OCR, source retrieval, geolocation, or image-forensics capability
-  is implemented.
-- Specific visual-conflict verification remains incomplete.
-- Human review is required; no consequential action is automated.
-
-## Privacy
-
-The application code processes uploaded images in memory and does not
-explicitly save them to disk.
-
-Inference runs within the Python hosting process, not through a paid
-remote inference API. Initial model downloads require network access.
-
-For a public deployment, uploaded inputs are sent to the hosting server
-for processing. Host-specific logging, retention, and privacy settings
-must be reviewed separately.
-
-## Deployment status
-
-Local model inference has been observed.
-Public deployment has not yet been verified.
-
-A Python application host is required; GitHub Pages cannot run this
-backend. Deployment must provide sufficient memory, storage, network
-access for model downloads, and CPU resources.
-
-Only publish a live-demo URL after verifying an actual inference request.
-
-## Repository exclusions
-
-Do not commit:
-
-- `.venv/` or other virtual environments
-- Model weights and caches
-- Secrets or `.env` files
-- Private uploads
-- Local backups or generated reports
+**Project:** Challenge 13 — MultimodalFact AI · AI/ML Methodology  
+**Team:** NeuralForge · Solo Participant  
+**Institution:** REVA University · Computer Science and Engineering

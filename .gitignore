@@ -36,6 +36,7 @@ outputs/
 # Backups
 *.bak
 *.backup
+app_before_*.txt
 
 # HuggingFace cache (can be large)
 ~/.cache/huggingface/
